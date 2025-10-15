@@ -34,6 +34,18 @@ func main() {
 	}
 	log.Printf("Queue %v declared and bound!\n", queueName)
 
+	queueName = fmt.Sprintf("%s.%s", routing.ArmyMovesPrefix, username)
+	err = pubsub.SubscribeJSON(conn, routing.ExchangePerilTopic, queueName, fmt.Sprintf("%s.*", routing.ArmyMovesPrefix), pubsub.SimpleQueueTransient, handlerMove(gameState))
+	if err != nil {
+		log.Fatalf("Error subscribing to pause: %v", err)
+	}
+	log.Printf("Queue %v declared and bound!\n", queueName)
+
+	moveChannel, err := conn.Channel()
+	if err != nil {
+		log.Fatalf("Error creating move channel: %v", err)
+	}
+
 	for {
 		words := gamelogic.GetInput()
 		if len(words) == 0 {
@@ -48,11 +60,16 @@ func main() {
 				continue
 			}
 		case "move":
-			_, err = gameState.CommandMove(words)
+			am, err := gameState.CommandMove(words)
 			if err != nil {
 				fmt.Println(err)
 				continue
 			}
+			err = pubsub.PublishJSON(moveChannel, routing.ExchangePerilTopic, fmt.Sprintf("%s.%s", routing.ArmyMovesPrefix, username), am)
+			if err != nil {
+				fmt.Printf("Error publishing message: %v\n", err)
+			}
+			fmt.Println("Move published successfully")
 		case "status":
 			gameState.CommandStatus()
 		case "help":

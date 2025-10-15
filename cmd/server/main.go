@@ -25,6 +25,12 @@ func main() {
 		log.Fatalf("Error opening channel: %v", err)
 	}
 
+	_, queue, err := pubsub.DeclareAndBind(conn, routing.ExchangePerilTopic, routing.GameLogSlug, fmt.Sprintf("%s.*", routing.GameLogSlug), pubsub.SimpleQueueDurable)
+	if err != nil {
+		log.Fatalf("Error subscribing to game log: %v", err)
+	}
+	log.Printf("Queue %v declared and bound!\n", queue.Name)
+
 	gamelogic.PrintServerHelp()
 mainloop:
 	for {

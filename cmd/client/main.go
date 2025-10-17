@@ -3,6 +3,7 @@ package main
 import (
 	"fmt"
 	"log"
+	"time"
 
 	"github.com/bootdotdev/learn-pub-sub-starter/internal/gamelogic"
 	"github.com/bootdotdev/learn-pub-sub-starter/internal/pubsub"
@@ -46,7 +47,7 @@ func main() {
 	}
 	log.Printf("Queue %v declared and bound!\n", queueName)
 
-	err = pubsub.SubscribeJSON(conn, routing.ExchangePerilTopic, string(routing.WarRecognitionsPrefix), fmt.Sprintf("%s.*", routing.WarRecognitionsPrefix), pubsub.SimpleQueueDurable, handlerWar(gameState))
+	err = pubsub.SubscribeJSON(conn, routing.ExchangePerilTopic, string(routing.WarRecognitionsPrefix), fmt.Sprintf("%s.*", routing.WarRecognitionsPrefix), pubsub.SimpleQueueDurable, handlerWar(gameState, publishCh))
 	if err != nil {
 		log.Fatalf("Error subscribing to pause: %v", err)
 	}
@@ -89,4 +90,14 @@ func main() {
 			fmt.Println("Invalid command. Please enter another command.")
 		}
 	}
+}
+
+func publishGameLog(ch *amqp.Channel, username string, message string) error {
+	key := fmt.Sprintf("%s.%s", routing.GameLogSlug, username)
+	gl := routing.GameLog{
+		CurrentTime: time.Now(),
+		Message:     message,
+		Username:    username,
+	}
+	return pubsub.PublishGob(ch, string(routing.ExchangePerilTopic), key, gl)
 }

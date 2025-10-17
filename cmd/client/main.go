@@ -18,6 +18,11 @@ func main() {
 	}
 	defer conn.Close()
 
+	publishCh, err := conn.Channel()
+	if err != nil {
+		log.Fatalf("Error creating publishing channel: %v", err)
+	}
+
 	log.Println("Starting Peril client...")
 
 	username, err := gamelogic.ClientWelcome()
@@ -35,16 +40,17 @@ func main() {
 	log.Printf("Queue %v declared and bound!\n", queueName)
 
 	queueName = fmt.Sprintf("%s.%s", routing.ArmyMovesPrefix, username)
-	err = pubsub.SubscribeJSON(conn, routing.ExchangePerilTopic, queueName, fmt.Sprintf("%s.*", routing.ArmyMovesPrefix), pubsub.SimpleQueueTransient, handlerMove(gameState))
+	err = pubsub.SubscribeJSON(conn, routing.ExchangePerilTopic, queueName, fmt.Sprintf("%s.*", routing.ArmyMovesPrefix), pubsub.SimpleQueueTransient, handlerMove(gameState, publishCh))
 	if err != nil {
 		log.Fatalf("Error subscribing to pause: %v", err)
 	}
 	log.Printf("Queue %v declared and bound!\n", queueName)
 
-	moveChannel, err := conn.Channel()
+	err = pubsub.SubscribeJSON(conn, routing.ExchangePerilTopic, string(routing.WarRecognitionsPrefix), fmt.Sprintf("%s.*", routing.WarRecognitionsPrefix), pubsub.SimpleQueueDurable, handlerWar(gameState))
 	if err != nil {
-		log.Fatalf("Error creating move channel: %v", err)
+		log.Fatalf("Error subscribing to pause: %v", err)
 	}
+	log.Println("Queue war declared and bound!")
 
 	for {
 		words := gamelogic.GetInput()
@@ -65,7 +71,7 @@ func main() {
 				fmt.Println(err)
 				continue
 			}
-			err = pubsub.PublishJSON(moveChannel, routing.ExchangePerilTopic, fmt.Sprintf("%s.%s", routing.ArmyMovesPrefix, username), am)
+			err = pubsub.PublishJSON(publishCh, routing.ExchangePerilTopic, fmt.Sprintf("%s.%s", routing.ArmyMovesPrefix, username), am)
 			if err != nil {
 				fmt.Printf("Error publishing message: %v\n", err)
 			}
